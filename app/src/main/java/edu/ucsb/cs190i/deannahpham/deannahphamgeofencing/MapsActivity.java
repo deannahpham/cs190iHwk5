@@ -6,30 +6,49 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.AsyncTask;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.json.JSONStringer;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 // HELP FROM : https://developer.android.com/guide/topics/location/strategies.html
 //https://stackoverflow.com/questions/14478179/background-service-with-location-listener-in-android
+// https://examples.javacodegeeks.com/android/android-google-places-api-example/
+// https://developers.google.com/places/web-service/
+// https://stackoverflow.com/questions/2492076/android-reading-from-an-input-stream-efficiently
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
-    private GoogleMap mMap;
+    private static GoogleMap mMap;
 
     final int LOCATION_PERMISSION_REQUEST_CODE = 1252;
+
+    private LocationManager mLocationManager;
+    private LocationListener mLocationListener;
+    public static Double currentLat;
+    public static Double currentLon;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,6 +58,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
+//        new GetPlacesTask().execute();
     }
 
 
@@ -75,14 +96,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         if (loc != null) {
             Log.d("LOOKHERE", " ! null");
-            double myLat = loc.getLatitude();
-            double myLng = loc.getLongitude();
-            LatLng current = new LatLng(myLat, myLng);
-            mMap.addMarker(new MarkerOptions().position(current).title("Current Location").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
-            mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
-
+            addListenerLocation();
+//            currentLat = loc.getLatitude();
+//            currentLon = loc.getLongitude();
+//            Log.d("LOOKHERE", " my lat " + currentLat + " my lon " + currentLon);
+//            LatLng current = new LatLng(currentLat, currentLon);
+//            mMap.addMarker(new MarkerOptions().position(current).title("Current Location").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
+//            mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
         }
-
+//        new GetPlacesTask().execute();
     }
 
     @Override
@@ -92,15 +114,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 addListenerLocation();
             } else {
                 // if permission is not granted
+                Toast.makeText(this, "Permission not granted!", Toast.LENGTH_SHORT).show();
                 Log.d("LOOKHERE", "no permission");
             }
         }
     }
-
-    private LocationManager mLocationManager;
-    private LocationListener mLocationListener;
-    private static double currentLat = 0;
-    private static double currentLon = 0;
 
     private void addListenerLocation() {
         Log.d("LOOKHERE", "in add listener location ");
@@ -116,7 +134,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 LatLng current = new LatLng(currentLat, currentLon);
                 mMap.addMarker(new MarkerOptions().position(current).title("Current Location").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
                 mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
-
+                new GetPlacesTask().execute();
+                addMarkers(GetPlacesTask.listPOI);
             }
 
             @Override
@@ -136,16 +155,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         };
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
+            //   Maybe:  ActivityCompat#requestPermissions and onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
             return;
         }
-        mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, mLocationListener);
+        mLocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, mLocationListener);
     }
 
     @Override
@@ -153,4 +166,128 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         super.onDestroy();
         mLocationManager.removeUpdates(mLocationListener);
     }
+
+
+    public static class GetPlacesTask extends AsyncTask {
+        //private OnPlacesRetrievedListener Listener;
+
+        //public GetPostsTask(OnPlacesRetrievedListener listener) {
+            //Listener = listener;
+        //}
+
+
+        public static List<PointsOfInterestDetails> listPOI = new ArrayList<>();
+
+        @Override
+        protected Object doInBackground(Object[] params) {
+            Log.d("LOOKHERE", "do in background ");
+            String location = String.valueOf(currentLat) + "," + String.valueOf(currentLon);
+            String radius = String.valueOf(500);
+            String key = "AIzaSyBcCsSUmfTpGVOqRajgadPVGjQ_QyYW72w";
+
+            String url = String.format("https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=%s&radius=%s&key=%s", location, radius, key);
+
+            try {
+                URLConnection connection = new URL(url).openConnection();
+                Log.d("LOOKHERE", "after openConnection ");
+
+                InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream(), "UTF-8");
+                BufferedReader r = new BufferedReader(inputStreamReader);
+                StringBuilder jsonString = new StringBuilder();
+                String line;
+                while ((line = r.readLine()) != null) {
+                    jsonString.append(line).append('\n');
+                }
+                jsonString.toString();
+
+                Log.d("WHY", "jsonString: " + jsonString);
+
+
+                JSONObject jsonObject = new JSONObject(String.valueOf(jsonString));
+                JSONArray results = jsonObject.getJSONArray("results");
+
+
+                for (int i = 0; i < results.length() - 1; i++) {
+                    PointsOfInterestDetails POI = new PointsOfInterestDetails();
+                    JSONObject result = (JSONObject) results.get(i);
+                    //Log.d("WHY", "result: " + result.toString());
+
+                    JSONObject geometry = result.getJSONObject("geometry");
+                    JSONObject poiLocation = geometry.getJSONObject("location");
+                    //Log.d("WHY", "geometry: " + geometry.toString());
+                    Log.d("check", "location: " + poiLocation.toString());
+
+                    double lat = poiLocation.getDouble("lat");
+                    double lng = poiLocation.getDouble("lng");
+
+                    //Log.d("check", "lat1: " + lat + "lng1: " + lng);
+
+                    POI.setLatitude(lat);
+                    POI.setLongitude(lng);
+
+                    //Is this right?
+                    String placeId = result.getString("place_id");
+                    Log.d("check", "placeId: " + placeId.toString());
+
+                    POI.setPlaceId(placeId);
+
+                    String name = result.getString("name");
+                    POI.setName(name);
+
+                    listPOI.add(POI);
+                }
+            }
+            catch (Exception e) {
+                return new ArrayList<>();
+            }
+
+            return null;
+        }
+
+    }
+
+    public static void addMarkers(List<PointsOfInterestDetails> POI) {
+        Log.d("WHY", "in add markers");
+        double lat;
+        double lng;
+        String name;
+
+        for (PointsOfInterestDetails poi : POI){
+            lat = poi.getLatitude();
+            lng = poi.getLongitude();
+            name = poi.getName();
+
+            LatLng current = new LatLng(lat, lng);
+            mMap.addMarker(new MarkerOptions().position(current).title(name));
+            mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
+        }
+
+
+
+
+
+        //double lat = POI.getLatitude();
+        //double lng = POI.getLongitude();
+
+        //Log.d("check", "lat: " + lat + "lng: " + lng);
+
+//        LatLng current = new LatLng(lat, lng);
+//        mMap.addMarker(new MarkerOptions().position(current).title("Current Location").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
+//        mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
+
+    }
+
+    //    public static void GetPosts(OnPlacesRetrievedListener listener) {
+//        new GetPostsTask(listener).execute();
+//    }
+//
+//    public interface OnPlacesRetrievedListener {
+//        void OnPlacesRetrieved();
+//    }
+
+//    @Override
+//    protected void onPostExecute() {
+//        Listener.OnPostListRetrieved();
+//    }
+
 }

@@ -2,10 +2,12 @@ package edu.ucsb.cs190i.deannahpham.deannahphamgeofencing;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
@@ -39,6 +41,8 @@ import java.util.Map;
 // https://examples.javacodegeeks.com/android/android-google-places-api-example/
 // https://developers.google.com/places/web-service/
 // https://stackoverflow.com/questions/2492076/android-reading-from-an-input-stream-efficiently
+// https://stackoverflow.com/questions/2201917/how-can-i-open-a-url-in-androids-web-browser-from-my-application
+// https://stackoverflow.com/questions/29302927/assign-a-click-listener-to-the-info-window-cannot-navigate-to-the-webpage-googl
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
@@ -59,7 +63,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
-
     }
 
 
@@ -96,11 +99,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             addListenerLocation();
         }
 
-        mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
+            mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
             @Override
             public void onInfoWindowClick(Marker marker) {
-                //Toast.makeText(MapsActivity.this, "CLICKED", Toast.LENGTH_SHORT).show();
+                Toast.makeText(MapsActivity.this, "CLICKED", Toast.LENGTH_SHORT).show();
 
+                Log.d("tag", "tag url: " + marker.getTag().toString());
+
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(marker.getTag().toString()));
+                startActivity(browserIntent);
 
             }
         });
@@ -253,19 +260,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                         POI.setUrl(details_url);
 
-
-
-
-                        //JSONObject details_jsonObject = new JSONObject(String.valueOf(details_jsonString));
-
-
-                    } catch (Exception e) {
-
+                    }
+                    catch (Exception e) {
                     }
 
                     listPOI.add(POI);
-                    Log.d("detail", "listPOI: " + listPOI.get(0).getUrl());
-                    Log.d("detail", "listPOI: " + listPOI.get(1).getUrl());
+                    //Log.d("detail", "listPOI: " + listPOI.get(0).getUrl());
+                    //Log.d("detail", "listPOI: " + listPOI.get(1).getUrl());
 
                 }
             }
@@ -278,27 +279,44 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
-    public static void addMarkers(List<PointsOfInterestDetails> POI) {
+    public void addMarkers(List<PointsOfInterestDetails> POI) {
         Log.d("check", "in add markers");
         double lat;
         double lng;
         String name;
         String placeId;
+        String url;
 
         for (PointsOfInterestDetails poi : POI){
             lat = poi.getLatitude();
             lng = poi.getLongitude();
             name = poi.getName();
+            url = poi.getUrl();
+            //Log.d("url", "url: "+ url);
 
             LatLng current = new LatLng(lat, lng);
-            mMap.addMarker(new MarkerOptions().position(current).title(name));
+            mMap.addMarker(new MarkerOptions().position(current).title(name)).setTag(url);
             mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
+
         }
 
-        for(int i = 0 ; i < 1000000; i++) {
-            //wasting time so i'm not adding to my list while i'm iterating over it and causing a crash
-        }
+//        for(int i = 0 ; i < 1000000; i++) {
+//            //wasting time so i'm not adding to my list while i'm iterating over it and causing a crash
+//        }
 
+//        final String finalUrl = url;
+//        mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
+//            @Override
+//            public void onInfoWindowClick(Marker marker) {
+//                Toast.makeText(MapsActivity.this, "CLICKED", Toast.LENGTH_SHORT).show();
+//
+//                //marker.ge
+//
+//                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(finalUrl));
+//                startActivity(browserIntent);
+//
+//            }
+//        });
 
 
     }

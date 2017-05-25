@@ -19,6 +19,7 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import org.json.JSONArray;
@@ -59,7 +60,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
-//        new GetPlacesTask().execute();
     }
 
 
@@ -77,9 +77,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap = googleMap;
         Log.d("LOOKHERE", "start");
 
-//        LatLng UCSB = new LatLng(34.4140, -119.8489);
-//        mMap.addMarker(new MarkerOptions().position(UCSB).title("Marker in UCSB"));
-//        mMap.moveCamera(CameraUpdateFactory.newLatLng(UCSB));
 
         LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -97,14 +94,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if (loc != null) {
             Log.d("LOOKHERE", " ! null");
             addListenerLocation();
-//            currentLat = loc.getLatitude();
-//            currentLon = loc.getLongitude();
-//            Log.d("LOOKHERE", " my lat " + currentLat + " my lon " + currentLon);
-//            LatLng current = new LatLng(currentLat, currentLon);
-//            mMap.addMarker(new MarkerOptions().position(current).title("Current Location").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
-//            mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
         }
-//        new GetPlacesTask().execute();
+
+        mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
+            @Override
+            public void onInfoWindowClick(Marker marker) {
+                //Toast.makeText(MapsActivity.this, "CLICKED", Toast.LENGTH_SHORT).show();
+
+
+            }
+        });
+
     }
 
     @Override
@@ -169,12 +169,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
 
     public static class GetPlacesTask extends AsyncTask {
-        //private OnPlacesRetrievedListener Listener;
-
-        //public GetPostsTask(OnPlacesRetrievedListener listener) {
-            //Listener = listener;
-        //}
-
 
         public static List<PointsOfInterestDetails> listPOI = new ArrayList<>();
 
@@ -200,7 +194,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 }
                 jsonString.toString();
 
-                Log.d("WHY", "jsonString: " + jsonString);
+                Log.d("check", "jsonString: " + jsonString);
 
 
                 JSONObject jsonObject = new JSONObject(String.valueOf(jsonString));
@@ -215,7 +209,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     JSONObject geometry = result.getJSONObject("geometry");
                     JSONObject poiLocation = geometry.getJSONObject("location");
                     //Log.d("WHY", "geometry: " + geometry.toString());
-                    Log.d("check", "location: " + poiLocation.toString());
+                    //Log.d("check", "location: " + poiLocation.toString());
 
                     double lat = poiLocation.getDouble("lat");
                     double lng = poiLocation.getDouble("lng");
@@ -225,16 +219,54 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     POI.setLatitude(lat);
                     POI.setLongitude(lng);
 
+                    String name = result.getString("name");
+                    POI.setName(name);
+
                     //Is this right?
                     String placeId = result.getString("place_id");
                     Log.d("check", "placeId: " + placeId.toString());
 
                     POI.setPlaceId(placeId);
 
-                    String name = result.getString("name");
-                    POI.setName(name);
+                    String detailsUrl = String.format("https://maps.googleapis.com/maps/api/place/details/json?placeid=%s&key=%s", placeId, key);
+
+                    try {
+                        URLConnection detailsConnection = new URL(detailsUrl).openConnection();
+                        Log.d("LOOKHERE", "after openConnection ");
+
+                        InputStreamReader detailsInputStreamReader = new InputStreamReader(detailsConnection.getInputStream(), "UTF-8");
+                        BufferedReader detailsR = new BufferedReader(detailsInputStreamReader);
+                        StringBuilder details_jsonString = new StringBuilder();
+                        String detailsLine;
+                        while ((detailsLine = detailsR.readLine()) != null) {
+                            details_jsonString.append(detailsLine).append('\n');
+                        }
+                        details_jsonString.toString();
+
+                        Log.d("details", "details_jsonString: " + details_jsonString);
+
+                        JSONObject details_jsonObject = new JSONObject(String.valueOf(details_jsonString));
+                        JSONObject details_results = details_jsonObject.getJSONObject("result");
+                        String details_url = details_results.getString("url");
+
+                        Log.d("details_url", "details_url: " + details_url);
+
+                        POI.setUrl(details_url);
+
+
+
+
+                        //JSONObject details_jsonObject = new JSONObject(String.valueOf(details_jsonString));
+
+
+                    } catch (Exception e) {
+
+                    }
 
                     listPOI.add(POI);
+                    Log.d("detail", "listPOI: " + listPOI.get(0).getUrl());
+                    Log.d("detail", "listPOI: " + listPOI.get(1).getUrl());
+
                 }
             }
             catch (Exception e) {
@@ -247,10 +279,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     public static void addMarkers(List<PointsOfInterestDetails> POI) {
-        Log.d("WHY", "in add markers");
+        Log.d("check", "in add markers");
         double lat;
         double lng;
         String name;
+        String placeId;
 
         for (PointsOfInterestDetails poi : POI){
             lat = poi.getLatitude();
@@ -262,18 +295,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
         }
 
+        for(int i = 0 ; i < 1000000; i++) {
+            //wasting time so i'm not adding to my list while i'm iterating over it and causing a crash
+        }
 
 
-
-
-        //double lat = POI.getLatitude();
-        //double lng = POI.getLongitude();
-
-        //Log.d("check", "lat: " + lat + "lng: " + lng);
-
-//        LatLng current = new LatLng(lat, lng);
-//        mMap.addMarker(new MarkerOptions().position(current).title("Current Location").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
-//        mMap.moveCamera(CameraUpdateFactory.newLatLng(current));
 
     }
 

@@ -6,7 +6,7 @@ package edu.ucsb.cs190i.deannahpham.deannahphamgeofencing;
 
 public class PointsOfInterestDetails {
     public double latitude, longitude;
-    public String placeId, name;
+    public String placeId, name, url;
 
     public PointsOfInterestDetails() {
         super();
@@ -28,6 +28,10 @@ public class PointsOfInterestDetails {
         this.name = name;
     }
 
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
     public double getLatitude () {
         return latitude;
     }
@@ -42,5 +46,9 @@ public class PointsOfInterestDetails {
 
     public String getName(){
         return name;
+    }
+
+    public String getUrl() {
+        return url;
     }
 }
